@@ -29,7 +29,6 @@ public class MainActivity extends AppCompatActivity {
         locationEt = findViewById(R.id.location_et);
         locationBtn = findViewById(R.id.location_btn);
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-
         instantiateLocationListner();
         checkBuildVersion();
 
