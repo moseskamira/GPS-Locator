@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
+import android.app.ProgressDialog;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -13,11 +14,17 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,11 +37,14 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE = 10;
     private Geocoder geocoder;
     private double latitude, longitude;
-    private String myLocation, myAddress, myCity, myState, knownName, myCountry;
+    private String myAddress, myCity, myState, knownName, myCountry;
+    private LatLng myLatLongCoordinates;
+    ProgressDialog progressDialog;
 
 
     private LocationRequest locationRequest;
     private FusedLocationProviderClient fusedLocationProviderClient;
+    private LocationCallback locationCallback;
 
 
 
@@ -48,7 +58,10 @@ public class MainActivity extends AppCompatActivity {
         regionTv = findViewById(R.id.region_tv);
         countryTv = findViewById(R.id.country_tv);
         geocoder = new Geocoder(getApplicationContext(), Locale.getDefault());
+        locationCallback = new LocationCallback();
         locationRequest = new LocationRequest();
+        progressDialog = new ProgressDialog(this);
+        progressDialog.setCancelable(false);
         locationRequest.setInterval(3000);
         locationRequest.setFastestInterval(5000);
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
@@ -64,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
                 requestPermissions(new String[]{
                         Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission
                         .ACCESS_COARSE_LOCATION, Manifest.permission.INTERNET}, REQUEST_CODE);
-
             }else {
                 updateLocation();
             }
@@ -72,24 +84,44 @@ public class MainActivity extends AppCompatActivity {
         }else {
             updateLocation();
         }
-
-
     }
 
     private void updateLocation() {
+        progressDialog.setMessage("Fetching Location");
+        progressDialog.show();
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(
-                MainActivity.this);
-        fusedLocationProviderClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                getApplicationContext());
+
+        fusedLocationProviderClient.getLastLocation().addOnCompleteListener(this, new OnCompleteListener<Location>() {
             @Override
-            public void onSuccess(Location location) {
-                latitude = location.getLatitude();
-                longitude = location.getLongitude();
-                myLocation = latitude + " , " + longitude;
-                convertToAddress(latitude, longitude);
+            public void onComplete(@NonNull Task<Location> task) {
+                task.addOnSuccessListener(new OnSuccessListener<Location>() {
+                    @Override
+                    public void onSuccess(Location location) {
+                        if (location != null) {
+                            progressDialog.dismiss();
+                            latitude = location.getLatitude();
+                            longitude = location.getLongitude();
+                            myLatLongCoordinates = new LatLng(latitude, longitude);
+                            convertToAddress(latitude, longitude);
+
+                        }else {
+                            Toast.makeText(getApplicationContext(),"Unable To Fetch Location",Toast.LENGTH_LONG).show();
+                        }
+
+                    }
+                });
+                task.addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        progressDialog.dismiss();
+                        e.printStackTrace();
+
+                    }
+                });
 
             }
         });
-
     }
 
     private void convertToAddress(double myLatitude, double myLongitude) {
@@ -118,17 +150,13 @@ public class MainActivity extends AppCompatActivity {
             }else {
                 Log.d("EMPTY", "LIST");
             }
-
-
-
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 
     private void updateUI() {
-        locationEt.setText(myLocation);
+        locationEt.setText(String.valueOf(myLatLongCoordinates));
         addressLineTv.setText(myAddress);
         cityTv.setText(myCity);
         regionTv.setText(myState);
@@ -144,6 +172,5 @@ public class MainActivity extends AppCompatActivity {
                     updateLocation();
                 }
         }
-
     }
 }
