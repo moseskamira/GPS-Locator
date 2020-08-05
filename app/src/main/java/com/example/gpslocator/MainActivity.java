@@ -2,19 +2,14 @@ package com.example.gpslocator;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.util.Log;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -32,8 +27,6 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText locationEt;
     private TextView addressLineTv, cityTv, regionTv, countryTv;
-    private LocationManager locationManager;
-    private LocationListener locationListener;
     private static final int REQUEST_CODE = 10;
     private Geocoder geocoder;
     private double latitude, longitude;
@@ -79,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
         }else {
             updateLocation();
         }
+
 
     }
 
