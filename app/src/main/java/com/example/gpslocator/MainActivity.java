@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
 
         getLocationPermission();
 
+
         locationCallback = new LocationCallback() {
 
             @Override
@@ -101,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
                                 if (location != null) {
                                     convertToAddress(location);
                                 } else {
-                                    Toast.makeText(getApplicationContext(), "Unable To Fetch Location", Toast.LENGTH_LONG).show();
+                                    updateGPS();
                                 }
                             }
                         });
@@ -163,6 +164,8 @@ public class MainActivity extends AppCompatActivity {
             case REQUEST_CODE:
                 if (grantedResults.length > 0 && grantedResults[0] == PackageManager.PERMISSION_GRANTED) {
                     updateGPS();
+                }else {
+                    Toast.makeText(getApplicationContext(), "ACEESS DENIED", Toast.LENGTH_LONG).show();
                 }
         }
     }
