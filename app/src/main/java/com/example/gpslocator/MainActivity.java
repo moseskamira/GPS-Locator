@@ -96,10 +96,12 @@ public class MainActivity extends AppCompatActivity {
                 locationManager.requestLocationUpdates("gps", 5000, 0, locationListener);
 
             }
+
         } else {
             locationManager.requestLocationUpdates("gps", 5000, 0, locationListener);
 
         }
+
     }
 
     @Override
