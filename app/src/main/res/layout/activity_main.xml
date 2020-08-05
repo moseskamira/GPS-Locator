@@ -43,6 +43,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textAppearance="@style/TextAppearance.AppCompat.SearchResult.Title"
                 android:textSize="24sp"
                 android:text="myAddress" />
 
@@ -66,6 +67,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textAppearance="@style/TextAppearance.AppCompat.SearchResult.Title"
                 android:textSize="24sp"
                 android:text="myCity" />
 
@@ -90,6 +92,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="24sp"
+                android:textAppearance="@style/TextAppearance.AppCompat.SearchResult.Title"
                 android:text="myRegion" />
 
         </LinearLayout>
@@ -110,6 +113,7 @@
             <TextView
                 android:id="@+id/country_tv"
                 android:layout_width="0dp"
+                android:textAppearance="@style/TextAppearance.AppCompat.SearchResult.Title"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textSize="24sp"
