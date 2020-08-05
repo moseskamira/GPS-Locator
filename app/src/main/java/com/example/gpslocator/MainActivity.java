@@ -4,7 +4,6 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
-import android.app.ProgressDialog;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -19,6 +18,7 @@ import android.widget.Toast;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -39,13 +39,11 @@ public class MainActivity extends AppCompatActivity {
     private double latitude, longitude;
     private String myAddress, myCity, myState, knownName, myCountry;
     private LatLng myLatLongCoordinates;
-    ProgressDialog progressDialog;
 
 
     private LocationRequest locationRequest;
     private FusedLocationProviderClient fusedLocationProviderClient;
     private LocationCallback locationCallback;
-
 
 
     @Override
@@ -58,76 +56,71 @@ public class MainActivity extends AppCompatActivity {
         regionTv = findViewById(R.id.region_tv);
         countryTv = findViewById(R.id.country_tv);
         geocoder = new Geocoder(getApplicationContext(), Locale.getDefault());
-        locationCallback = new LocationCallback();
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(getApplicationContext());
         locationRequest = new LocationRequest();
-        progressDialog = new ProgressDialog(this);
-        progressDialog.setCancelable(false);
-        locationRequest.setInterval(3000);
+        locationRequest.setInterval(10000);
         locationRequest.setFastestInterval(5000);
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
         getLocationPermission();
+
+        locationCallback = new LocationCallback() {
+
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                Location location = locationResult.getLastLocation();
+                convertToAddress(location);
+            }
+        };
     }
+
 
     private void getLocationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager
-                    .PERMISSION_GRANTED && checkSelfPermission(Manifest.permission
-                    .ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-
-                requestPermissions(new String[]{
-                        Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission
-                        .ACCESS_COARSE_LOCATION, Manifest.permission.INTERNET}, REQUEST_CODE);
-            }else {
-                updateLocation();
+                    .PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        REQUEST_CODE);
+            } else {
+                updateGPS();
             }
-
-        }else {
-            updateLocation();
+        } else {
+            updateGPS();
         }
     }
 
-    private void updateLocation() {
-        progressDialog.setMessage("Fetching Location");
-        progressDialog.show();
-        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(
-                getApplicationContext());
-
-        fusedLocationProviderClient.getLastLocation().addOnCompleteListener(this, new OnCompleteListener<Location>() {
-            @Override
-            public void onComplete(@NonNull Task<Location> task) {
-                task.addOnSuccessListener(new OnSuccessListener<Location>() {
+    private void updateGPS() {
+        fusedLocationProviderClient.getLastLocation()
+                .addOnCompleteListener(this, new OnCompleteListener<Location>() {
                     @Override
-                    public void onSuccess(Location location) {
-                        if (location != null) {
-                            progressDialog.dismiss();
-                            latitude = location.getLatitude();
-                            longitude = location.getLongitude();
-                            myLatLongCoordinates = new LatLng(latitude, longitude);
-                            convertToAddress(latitude, longitude);
-
-                        }else {
-                            Toast.makeText(getApplicationContext(),"Unable To Fetch Location",Toast.LENGTH_LONG).show();
-                        }
-
+                    public void onComplete(@NonNull Task<Location> task) {
+                        task.addOnSuccessListener(new OnSuccessListener<Location>() {
+                            @Override
+                            public void onSuccess(Location location) {
+                                if (location != null) {
+                                    convertToAddress(location);
+                                } else {
+                                    Toast.makeText(getApplicationContext(), "Unable To Fetch Location", Toast.LENGTH_LONG).show();
+                                }
+                            }
+                        });
+                        task.addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                e.printStackTrace();
+                            }
+                        });
                     }
                 });
-                task.addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        progressDialog.dismiss();
-                        e.printStackTrace();
-
-                    }
-                });
-
-            }
-        });
     }
 
-    private void convertToAddress(double myLatitude, double myLongitude) {
+    private void convertToAddress(Location myLoc) {
         try {
-
-            List<Address> addressList = geocoder.getFromLocation(myLatitude, myLongitude, 1);
+            latitude = myLoc.getLatitude();
+            longitude = myLoc.getLongitude();
+            myLatLongCoordinates = new LatLng(latitude, longitude);
+            List<Address> addressList = geocoder.getFromLocation(latitude, longitude, 1);
 
             if (!addressList.isEmpty()) {
                 myAddress = addressList.get(0).getAddressLine(0);
@@ -136,8 +129,8 @@ public class MainActivity extends AppCompatActivity {
                 knownName = addressList.get(0).getFeatureName();
                 myCountry = addressList.get(0).getCountryName();
 
-                Log.d("MY LATITUDE", "" + myLatitude);
-                Log.d("MY LONGITUDE", "" + myLongitude);
+                Log.d("MY LATITUDE", "" + latitude);
+                Log.d("MY LONGITUDE", "" + longitude);
 
                 Log.d("MY ADDRESS", myAddress);
                 Log.d("MY CITY", myCity);
@@ -147,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
 
                 updateUI();
 
-            }else {
+            } else {
                 Log.d("EMPTY", "LIST");
             }
         } catch (IOException e) {
@@ -169,7 +162,7 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case REQUEST_CODE:
                 if (grantedResults.length > 0 && grantedResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    updateLocation();
+                    updateGPS();
                 }
         }
     }
