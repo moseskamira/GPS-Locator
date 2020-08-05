@@ -2,6 +2,7 @@ package com.example.gpslocator;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
 import android.content.Intent;
@@ -18,6 +19,11 @@ import android.util.Log;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnSuccessListener;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
@@ -29,11 +35,14 @@ public class MainActivity extends AppCompatActivity {
     private LocationManager locationManager;
     private LocationListener locationListener;
     private static final int REQUEST_CODE = 10;
-
     private Geocoder geocoder;
-    private List<Address> addressList;
     private double latitude, longitude;
     private String myLocation, myAddress, myCity, myState, knownName, myCountry;
+
+
+    private LocationRequest locationRequest;
+    private FusedLocationProviderClient fusedLocationProviderClient;
+
 
 
     @Override
@@ -45,86 +54,54 @@ public class MainActivity extends AppCompatActivity {
         cityTv = findViewById(R.id.city_tv);
         regionTv = findViewById(R.id.region_tv);
         countryTv = findViewById(R.id.country_tv);
-        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
         geocoder = new Geocoder(getApplicationContext(), Locale.getDefault());
-
-        instantiateLocationListner();
-        checkBuildVersion();
-
+        locationRequest = new LocationRequest();
+        locationRequest.setInterval(3000);
+        locationRequest.setFastestInterval(5000);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        getLocationPermission();
     }
 
-    private void instantiateLocationListner() {
-        locationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                latitude = location.getLatitude();
-                longitude = location.getLongitude();
-                myLocation = latitude + " , " + longitude;
-
-                convertToAddress(latitude, longitude);
-
-            }
-
-            @Override
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-
-            }
-
-            @Override
-            public void onProviderEnabled(String provider) {
-
-            }
-
-            @Override
-            public void onProviderDisabled(String provider) {
-                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-                startActivity(intent);
-            }
-        };
-    }
-
-    private void checkBuildVersion() {
+    private void getLocationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager
                     .PERMISSION_GRANTED && checkSelfPermission(Manifest.permission
                     .ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
                 requestPermissions(new String[]{
                         Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission
                         .ACCESS_COARSE_LOCATION, Manifest.permission.INTERNET}, REQUEST_CODE);
 
-            } else {
-                locationManager.requestLocationUpdates("gps", 5000, 0, locationListener);
-
+            }else {
+                updateLocation();
             }
 
-        } else {
-            locationManager.requestLocationUpdates("gps", 5000, 0, locationListener);
-
+        }else {
+            updateLocation();
         }
 
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantedResults) {
-        switch (requestCode) {
-            case REQUEST_CODE:
-                if (grantedResults.length > 0 && grantedResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    fetchCurrentLocation();
-                }
-        }
+    private void updateLocation() {
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(
+                MainActivity.this);
+        fusedLocationProviderClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+            @Override
+            public void onSuccess(Location location) {
+                latitude = location.getLatitude();
+                longitude = location.getLongitude();
+                myLocation = latitude + " , " + longitude;
+                convertToAddress(latitude, longitude);
 
-    }
-
-
-    public void fetchCurrentLocation() {
-        locationManager.requestLocationUpdates("gps", 5000, 0, locationListener);
+            }
+        });
 
     }
 
     private void convertToAddress(double myLatitude, double myLongitude) {
         try {
 
-            addressList = geocoder.getFromLocation(myLatitude, myLongitude, 1);
+            List<Address> addressList = geocoder.getFromLocation(myLatitude, myLongitude, 1);
 
             if (!addressList.isEmpty()) {
                 myAddress = addressList.get(0).getAddressLine(0);
@@ -142,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("KNOWN NAME", knownName);
                 Log.d("my COUNTRY", myCountry);
 
-                setToViews();
+                updateUI();
 
             }else {
                 Log.d("EMPTY", "LIST");
@@ -156,12 +133,23 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void setToViews() {
+    private void updateUI() {
         locationEt.setText(myLocation);
         addressLineTv.setText(myAddress);
         cityTv.setText(myCity);
         regionTv.setText(myState);
         countryTv.setText(myCountry);
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantedResults) {
+        switch (requestCode) {
+            case REQUEST_CODE:
+                if (grantedResults.length > 0 && grantedResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    updateLocation();
+                }
+        }
 
     }
 }
