@@ -4,6 +4,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
+import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
@@ -15,11 +17,15 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
+import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
@@ -34,16 +40,19 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText locationEt;
     private TextView addressLineTv, cityTv, regionTv, countryTv;
-    private static final int REQUEST_CODE = 10;
+
     private Geocoder geocoder;
-    private double latitude, longitude;
-    private String myAddress, myCity, myState, knownName, myCountry;
+    private String myAddress, myCity, myState, myCountry;
     private LatLng myLatLongCoordinates;
+    private Location lastKnownLocation;
 
 
     private LocationRequest locationRequest;
     private FusedLocationProviderClient fusedLocationProviderClient;
     private LocationCallback locationCallback;
+
+    private static final int REQUEST_CODE = 10;
+    private static final int LOC_ENABLED_CHECK_CODE = 21;
 
 
     @Override
@@ -56,23 +65,9 @@ public class MainActivity extends AppCompatActivity {
         regionTv = findViewById(R.id.region_tv);
         countryTv = findViewById(R.id.country_tv);
         geocoder = new Geocoder(getApplicationContext(), Locale.getDefault());
-        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(getApplicationContext());
-        locationRequest = new LocationRequest();
-        locationRequest.setInterval(10000);
-        locationRequest.setFastestInterval(5000);
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(MainActivity.this);
         getLocationPermission();
 
-        locationCallback = new LocationCallback() {
-
-            @Override
-            public void onLocationResult(LocationResult locationResult) {
-                super.onLocationResult(locationResult);
-                Location location = locationResult.getLastLocation();
-                convertToAddress(location);
-            }
-        };
     }
 
 
@@ -83,42 +78,85 @@ public class MainActivity extends AppCompatActivity {
                 requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                         REQUEST_CODE);
             } else {
-                updateGPS();
+                checkLocationSettings();
             }
         } else {
-            updateGPS();
+            checkLocationSettings();
         }
     }
 
-    private void updateGPS() {
+    private void checkLocationSettings() {
+        locationRequest = LocationRequest.create();
+        locationRequest.setInterval(10000);
+        locationRequest.setFastestInterval(5000);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        LocationSettingsRequest.Builder locationSettingsBuilder = new LocationSettingsRequest.Builder()
+                .addLocationRequest(locationRequest);
+
+        SettingsClient settingsClient = LocationServices.getSettingsClient(MainActivity.this);
+        Task<LocationSettingsResponse> task = settingsClient.checkLocationSettings(locationSettingsBuilder.build());
+        task.addOnSuccessListener(MainActivity.this, new OnSuccessListener<LocationSettingsResponse>() {
+            @Override
+            public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                getDeviceLocation();
+
+            }
+        });
+
+        task.addOnFailureListener(MainActivity.this, new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                if (e instanceof ResolvableApiException) {
+                    ResolvableApiException resolvableApiException = (ResolvableApiException) e;
+                    try {
+                        resolvableApiException.startResolutionForResult(MainActivity.this, LOC_ENABLED_CHECK_CODE);
+                    } catch (IntentSender.SendIntentException ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        });
+    }
+
+    private void getDeviceLocation() {
         fusedLocationProviderClient.getLastLocation()
-                .addOnCompleteListener(this, new OnCompleteListener<Location>() {
+                .addOnCompleteListener(new OnCompleteListener<Location>() {
                     @Override
                     public void onComplete(@NonNull Task<Location> task) {
-                        task.addOnSuccessListener(new OnSuccessListener<Location>() {
-                            @Override
-                            public void onSuccess(Location location) {
-                                if (location != null) {
-                                    convertToAddress(location);
-                                } else {
-                                    Toast.makeText(getApplicationContext(), "Unable To Fetch Location", Toast.LENGTH_LONG).show();
-                                }
+                        if (task.isSuccessful()) {
+                            lastKnownLocation = task.getResult();
+                            if (lastKnownLocation != null) {
+                                Log.d("KNOWNLOC", lastKnownLocation.toString());
+                                convertToAddress(lastKnownLocation);
+
+
+                            } else {
+                                locationRequest = LocationRequest.create();
+                                locationRequest.setInterval(10000);
+                                locationRequest.setFastestInterval(5000);
+                                locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+                                locationCallback = new LocationCallback() {
+
+                                    @Override
+                                    public void onLocationResult(LocationResult locationResult) {
+                                        super.onLocationResult(locationResult);
+                                        if (locationResult != null) {
+                                            lastKnownLocation = locationResult.getLastLocation();
+                                            convertToAddress(lastKnownLocation);
+                                        }
+                                    }
+                                };
+                                fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null);
                             }
-                        });
-                        task.addOnFailureListener(new OnFailureListener() {
-                            @Override
-                            public void onFailure(@NonNull Exception e) {
-                                e.printStackTrace();
-                            }
-                        });
+                        }
                     }
                 });
     }
 
     private void convertToAddress(Location myLoc) {
         try {
-            latitude = myLoc.getLatitude();
-            longitude = myLoc.getLongitude();
+            double latitude = myLoc.getLatitude();
+            double longitude = myLoc.getLongitude();
             myLatLongCoordinates = new LatLng(latitude, longitude);
             List<Address> addressList = geocoder.getFromLocation(latitude, longitude, 1);
 
@@ -126,7 +164,6 @@ public class MainActivity extends AppCompatActivity {
                 myAddress = addressList.get(0).getAddressLine(0);
                 myCity = addressList.get(0).getLocality();
                 myState = addressList.get(0).getAdminArea();
-                knownName = addressList.get(0).getFeatureName();
                 myCountry = addressList.get(0).getCountryName();
 
                 Log.d("MY LATITUDE", "" + latitude);
@@ -135,7 +172,6 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("MY ADDRESS", myAddress);
                 Log.d("MY CITY", myCity);
                 Log.d("MY STATE", myState);
-                Log.d("KNOWN NAME", knownName);
                 Log.d("my COUNTRY", myCountry);
 
                 updateUI();
@@ -162,8 +198,23 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case REQUEST_CODE:
                 if (grantedResults.length > 0 && grantedResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    updateGPS();
+                    checkLocationSettings();
+                } else {
+                    Toast.makeText(getApplicationContext(), "ACEESS DENIED", Toast.LENGTH_LONG).show();
                 }
         }
     }
+
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == LOC_ENABLED_CHECK_CODE) {
+            if (resultCode == RESULT_OK) {
+                getDeviceLocation();
+            }
+        }
+    }
+
+
 }
